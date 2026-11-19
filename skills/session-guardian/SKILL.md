@@ -50,8 +50,8 @@ If memory is missing, run `session-guardian init` or create it from templates. N
 
 Use the local core engine when available:
 - `session-guardian checkpoint` creates a timestamped, integrity-manifested snapshot of memory and Git metadata.
-- `session-guardian audit` verifies checkpoint hashes and required memory files.
-- `session-guardian recover` identifies the latest checkpoint; it does not automatically roll back or overwrite working files.
+- `session-guardian audit` verifies required memory files, project identity, merge-conflict markers, and checkpoint integrity. Resolve reported problems before relying on memory.
+- `session-guardian recover` selects the newest checkpoint that passes verification, lists invalid ones it skipped, and reports memory files changed since that checkpoint plus Git HEAD/branch drift. It does not roll back or overwrite working files.
 
 Persist meaningful information promptly after milestones, decisions, scope changes, blockers, significant test results, and before handoffs or context compaction. Avoid noisy updates for trivial commands.
 
