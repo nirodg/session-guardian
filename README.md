@@ -1,28 +1,29 @@
 # SessionGuardian
 
-**Never lose context. Never lose direction.**
+<p align="center">
+  <img src="assets/session-guardian.svg" alt="SessionGuardian — Never lose context. Never lose direction." width="100%">
+</p>
 
-SessionGuardian is an agent-agnostic project memory and session recovery system for AI-assisted software development. It gives coding agents a durable, repository-local source of truth for project goals, scope, architecture, decisions, current state, and next actions.
+<p align="center">
+  <strong>Never lose context. Never lose direction.</strong><br>
+  Agent-agnostic project memory, session recovery, and scope protection.
+</p>
 
-It is designed for Codex, Claude Code, OpenCode, and other agents that can read Markdown instructions or skills.
+SessionGuardian gives AI coding agents a durable, repository-local source of truth for project goals, scope, architecture, decisions, current state, and next actions. The core protocol is plain Markdown, independent of any model vendor.
 
-> **Core principle:** the agent's conversation is temporary; the project's memory belongs to the project.
-
-## Why
-
-AI coding sessions end unexpectedly: terminals close, agents crash, context windows compact, and developers switch tools. SessionGuardian makes recovery a deliberate engineering workflow rather than a guess based on chat history.
-
-It also protects focus. Agents must identify out-of-scope ideas, record them separately, and keep working on the agreed objective.
+> **Core principle:** the conversation is temporary; the project's memory belongs to the project.
 
 ## Install
 
 ### macOS / Linux
 
+One command, no GitHub account required at runtime:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nirodg/session-guardian/main/install.sh | bash
 ```
 
-Or inspect the installer first:
+Prefer to inspect before executing?
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/nirodg/session-guardian/main/install.sh
@@ -30,33 +31,33 @@ less install.sh
 bash install.sh
 ```
 
-### Windows PowerShell
+Choose an adapter explicitly:
 
-```powershell
-irm https://raw.githubusercontent.com/nirodg/session-guardian/main/install.ps1 | iex
+```bash
+curl -fsSL https://raw.githubusercontent.com/nirodg/session-guardian/main/install.sh | bash -s -- --agent codex
 ```
 
-The installer detects supported agents, installs the shared skill/instructions, and can initialize the current project. It does not require a GitHub account at runtime.
+Supported installer targets currently include Codex, Claude Code, OpenCode, and a generic skills directory. Auto mode installs only into recognized agent skill directories already present; if none are found, it installs the generic skill.
 
 ## Quick start
 
-From the repository you want to protect:
+From the project you want to protect:
 
 ```bash
 session-guardian init
 session-guardian status
 ```
 
-In your coding agent, ask it to **recover context**. Before ending a session, ask it to **checkpoint**. The skill also instructs agents to update durable memory after meaningful milestones and decisions.
+At the beginning of a fresh agent session, ask it to **recover context**. Before ending or switching agents, ask it to **checkpoint**. The skill also instructs the agent to persist meaningful milestones and decisions as work proceeds.
 
 ## What it protects
 
-- **Project memory:** goals, scope, architecture, decisions, verified state, and next steps.
-- **Session recovery:** a compact, actionable handoff for a fresh agent instance.
-- **Scope integrity:** explicit in-scope and out-of-scope boundaries.
-- **Reality checks:** compare memory with Git state and the actual repository before resuming.
-- **Multi-agent continuity:** portable Markdown memory that is not owned by one vendor.
-- **Safe operation:** preserve user changes; never silently discard work or overwrite instructions.
+- **Persistent project memory** — goals, scope, architecture, decisions, verified state, and next steps.
+- **Session recovery** — actionable handoff for a fresh agent instance.
+- **Scope integrity** — out-of-scope ideas are parked, not silently implemented.
+- **Reality verification** — reconcile memory against source code, Git state, and test results.
+- **Multi-agent continuity** — one portable memory format across supported agents.
+- **Safe operation** — preserve user changes; never silently discard work or overwrite existing instructions.
 
 ## Memory layout
 
@@ -72,30 +73,39 @@ In your coding agent, ask it to **recover context**. Before ending a session, as
   checkpoints/
 ```
 
-All project memory is plain Markdown and can be reviewed, edited, backed up, or committed with Git. Do not store secrets, credentials, private keys, or sensitive personal data in memory files.
-
-## Design guarantees and limits
-
-SessionGuardian is a recovery protocol and agent skill, not a magical process recorder. It can recover only information that was persisted. A hard power loss or forced process kill can destroy work that was never saved or checkpointed. Agent-specific hooks and lifecycle integrations can improve automatic checkpointing, but support varies by agent and version.
-
-The source code and working tree are authoritative over stale memory. SessionGuardian never claims a task is complete without verification.
+Memory is plain Markdown: inspectable, editable, portable, and easy to version with Git. Never store secrets, credentials, private keys, or sensitive personal data in memory files.
 
 ## Commands
 
-The installer provides a lightweight local helper:
-
-- `session-guardian init` — create project memory templates.
+- `session-guardian init` — create project memory templates without overwriting existing files.
 - `session-guardian status` — show memory files and Git working-tree state.
-- `session-guardian checkpoint` — create a timestamped checkpoint from current memory.
+- `session-guardian checkpoint` — create a timestamped snapshot of current memory and Git status.
 - `session-guardian recover` — print the recovery checklist.
-- `session-guardian doctor` — inspect installation and agent integrations.
+- `session-guardian doctor` — inspect the local installation.
 
-The coding agent performs the semantic work of reading, reconciling, and updating project context.
+The coding agent performs the semantic work: reading, reconciling, updating, and applying the scope firewall.
+
+## Important limitation
+
+SessionGuardian is a recovery protocol and agent skill, not a magical process recorder. It can recover only information that was persisted. A hard power loss or forced process kill can lose unsaved editor buffers and uncheckpointed reasoning. Lifecycle hooks and automatic checkpointing are planned adapter capabilities; support must be validated per agent and version.
+
+The repository's actual code and Git state outrank stale memory. SessionGuardian must never claim a task is complete without evidence.
+
+## Roadmap
+
+- [x] Agent-neutral memory protocol and core skill
+- [x] Initial project memory templates
+- [x] Linux/macOS installer and local helper CLI
+- [x] Project branding and SVG hero artwork
+- [ ] Native, tested adapters and lifecycle hooks per agent
+- [ ] Crash-resilient automatic checkpoint daemon
+- [ ] Windows installer and cross-platform test suite
+- [ ] Multi-project registry and session discovery
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions for additional agent adapters, lifecycle hooks, tests, and platform support are welcome.
+See [CONTRIBUTING.md](CONTRIBUTING.md). New adapters must document installation paths, discovery behavior, lifecycle hooks, upgrades, and reproducible validation.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
