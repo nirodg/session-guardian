@@ -92,7 +92,6 @@ def snapshot(root: Path):
             if src.is_file():
                 dest = target / src.name
                 shutil.copyfile(src, dest)
-                with dest.open("rb") as f: os.fsync(f.fileno())
                 entries.append({"file": src.name, "sha256": digest(dest), "size": dest.stat().st_size})
         git = git_info(root)
         manifest = {"format_version": FORMAT_VERSION, "created_at": now(), "project": str(root.resolve()), "git": git, "files": entries}
