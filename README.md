@@ -9,9 +9,9 @@
   Agent-agnostic project memory, session recovery, and scope protection.
 </p>
 
-SessionGuardian gives AI coding agents a durable, repository-local source of truth for project goals, scope, architecture, decisions, current state, and next actions. Its core protocol is plain Markdown; its deterministic local engine handles initialization, atomic checkpointing, and integrity verification.
+SessionGuardian gives AI coding agents a durable, repository-local source of truth for project goals, scope, architecture, decisions, current state, and next actions. Memory is plain Markdown in `.session-guardian/`; a single-file, standard-library Python engine handles crash-safe checkpoints, verified recovery, session tracking, a background watcher, and scope enforcement.
 
-> **Core principle:** the conversation is temporary; the project's memory belongs to the project.
+> **Core principle:** the conversation is temporary; the project's memory belongs to the project. The agent is replaceable.
 
 ## Install
 
@@ -21,134 +21,136 @@ SessionGuardian gives AI coding agents a durable, repository-local source of tru
 curl -fsSL https://raw.githubusercontent.com/nirodg/session-guardian/main/install.sh | bash
 ```
 
-Prefer to inspect before executing?
+Inspect first, pin a version, or pick an agent:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/nirodg/session-guardian/main/install.sh
 less install.sh
-bash install.sh
+bash install.sh --version <tag-or-commit> --agent claude   # agent: auto | codex | claude | opencode | generic | none
 ```
 
-Choose an adapter explicitly:
+### Windows (experimental)
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/nirodg/session-guardian/main/install.sh | bash -s -- --agent codex
+```powershell
+irm https://raw.githubusercontent.com/nirodg/session-guardian/main/install.ps1 -OutFile install.ps1
+.\install.ps1 -AddToPath
 ```
 
-The installer currently targets Codex, Claude Code, OpenCode, and a generic skills directory. Auto mode installs only into recognized agent skill directories already present; otherwise it installs the generic skill. Python 3.9+ and Git are required.
+`install.ps1` mirrors `install.sh` but has **not yet been validated on Windows**; it runs in the `windows-latest` CI job. The core engine supports Windows (it uses `msvcrt` locking), but that path has also only been exercised in CI so far.
+
+Requirements: Python 3.9+, Git (for downloads and Git-aware features). Installers are idempotent: re-running upgrades in place, never overwrites a skill you edited or a file it did not create, and never touches project memory. Uninstall with `bash install.sh --uninstall` or `.\install.ps1 -Uninstall`.
 
 ## Quick start
 
-From the project you want to protect:
-
 ```bash
-session-guardian init
-session-guardian status
+cd my-project
+session-guardian init                 # create .session-guardian/ (never overwrites)
+session-guardian integrate claude     # or codex, opencode, gemini, cursor, windsurf, agents-md
+session-guardian watch start          # optional: background checkpoints on activity
 ```
 
-At the beginning of a fresh agent session, ask it to **recover context**. Before ending or switching agents, ask it to **checkpoint**.
+Fill in `SCOPE.md` (objective, invariants, protected paths) and `PROJECT.md`. From then on:
 
-## Core commands
+- A fresh session runs `session-guardian recover --format markdown` (Claude Code does this automatically via hooks) and gets a handoff report: what the project is, the active objective, what must not change, decisions, current state, unfinished tasks, the next action, Git drift, and interrupted sessions.
+- Agents update memory after milestones and run `session-guardian checkpoint`.
+- Edits to protected paths are flagged by `session-guardian scope check` (and blocked outright in Claude Code).
 
-- `session-guardian init [directory]` — create project memory templates without overwriting existing files; records a project identity and Git fingerprint.
-- `session-guardian status [directory]` — show memory files, checkpoints, and Git state.
-- `session-guardian checkpoint [directory] [--keep N]` — atomically publish a snapshot with SHA-256 manifest and Git metadata; optionally keep only the N newest valid checkpoints.
-- `session-guardian recover [directory] [--checkpoint ID]` — select the newest checkpoint that passes verification (or verify a chosen one), report skipped invalid checkpoints, memory changed since that checkpoint, and Git drift. Never rolls back working files.
-- `session-guardian audit [directory]` — verify memory files, project identity, and every checkpoint; exits 1 on problems.
-- `session-guardian prune [directory] --keep N` — delete the oldest valid checkpoints beyond N.
-- `session-guardian doctor` — inspect Python, core installation, and supported manifest formats.
+## Commands
 
-All commands print JSON. Usage errors exit 2 with a message on stderr.
+| Command | Purpose |
+|---|---|
+| `init [dir] [--alias NAME]` | Create memory templates without overwriting; record identity; register the project. |
+| `status [dir]` | Memory files, checkpoints, sessions, watcher, Git state. |
+| `checkpoint [dir] [--keep N] [--note TEXT]` | Atomically publish a verified snapshot. Refuses if memory appears to contain credentials (`--allow-secrets` to override). |
+| `recover [dir] [--checkpoint ID] [--format markdown]` | Select the newest valid checkpoint and produce the recovery report. Read-only. |
+| `audit [dir]` | Verify memory, identity, secrets, merge-conflict markers and every checkpoint. Exit 1 on problems. |
+| `diff [dir] [--checkpoint ID] [FILE…]` | Unified diff of memory against a checkpoint. |
+| `restore FILE… --checkpoint ID` / `--all` | Explicitly restore memory files; a safety checkpoint of the current content is taken first. |
+| `prune [dir] --keep N` | Delete the oldest valid checkpoints beyond N. |
+| `import-checkpoint SRC [dir]` | Verify an external checkpoint and add it as a recovery point. |
+| `session start/heartbeat/end` · `sessions` | Record and list agent sessions (active, interrupted, ended). |
+| `watch start/stop/status/run [dirs…] [--all]` | Background watcher; one process per project. |
+| `scope show` · `scope check PATH… [--git]` · `scope approve TEXT [--path GLOB]` | Scope guardian. `check` exits 1 on protected paths. |
+| `park "idea"` | Record an out-of-scope idea in the parking lot instead of implementing it. |
+| `projects [list/add/alias/forget/prune]` | Global registry of projects; `@alias` works wherever a directory is accepted. |
+| `config list/get/set/unset KEY [VALUE]` | Per-project configuration (validated). |
+| `integrate AGENT [dir] [--remove]` · `integrate list` | Install agent instructions and (Claude Code) lifecycle hooks. |
+| `hook AGENT EVENT` | Lifecycle hook entry point; reads the event payload on stdin. |
+| `doctor` · `completion bash/zsh/powershell` · `uninstall` · `--version` | Diagnostics and tooling. |
 
-## Core engine guarantees
-
-- **Atomic checkpoints.** A checkpoint is built in `checkpoints/.staging-*` and published with one directory rename. A crash, kill, or full disk mid-checkpoint never produces a visible checkpoint and never replaces an earlier one. Leftovers are reported by `audit` and removed by the next `checkpoint` or `prune`.
-- **Consistent hashes.** Each memory file is read once; the stored bytes and the recorded hash come from the same read. Files are fsynced before publishing.
-- **Locking.** Mutating and verifying commands hold an OS lock on `.session-guardian/.lock` (`flock` on POSIX, `msvcrt.locking` on Windows). The OS releases it if the holder dies, so a crash cannot leave a stuck lock. Commands wait up to `--lock-timeout` seconds (default 30).
-- **Never overwrite memory.** `init` creates missing files with an exclusive create; existing files are left untouched. `recover` is read-only.
-- **Verified recovery points.** Verification checks manifest format, allowed file names (no path traversal), sizes, SHA-256 hashes, unlisted files, and that the checkpoint belongs to this project.
-- **Corruption and conflict detection.** `audit` reports missing, empty, non-UTF-8, or NUL-containing memory files; unresolved Git merge-conflict markers; an invalid `identity.json`; and memory copied from a different Git repository (root-commit fingerprint mismatch).
-- **Versioned formats.** Manifests carry `format_version` (currently 2). Older manifests (v1) are read and verified in place without rewriting; manifests from a newer SessionGuardian are rejected with an upgrade hint rather than misread.
-
-### Retention
-
-Retention is off by default: SessionGuardian never deletes checkpoints unless asked. Enable it per project in `.session-guardian/config.json`:
-
-```json
-{ "retention": { "keep": 20 } }
-```
-
-or per run with `checkpoint --keep N` (`0` = unlimited). Pruning counts only checkpoints that pass verification; invalid checkpoints are kept for inspection.
+Commands search parent directories for `.session-guardian/`, so they work from any subdirectory. Output is JSON by default (`--format text` for humans); usage errors exit 2, unexpected errors exit 3 with a one-line message (`--verbose` for details).
 
 ## Memory layout
 
 ```text
 .session-guardian/
+  PROJECT.md  SCOPE.md  ARCHITECTURE.md  DECISIONS.md     # project memory (commit these)
+  CURRENT_STATE.md  SESSION_LOG.md  NEXT_STEPS.md
   identity.json        # project_id + Git root-commit fingerprint
-  config.json          # optional (retention)
-  .gitignore           # ignores runtime files below
-  .lock                # runtime lock file
-  PROJECT.md
-  SCOPE.md
-  ARCHITECTURE.md
-  DECISIONS.md
-  CURRENT_STATE.md
-  SESSION_LOG.md
-  NEXT_STEPS.md
-  LATEST
-  checkpoints/
-    <YYYYMMDDTHHMMSS_ffffffZ>/
-      manifest.json
-      *.md
+  config.json          # optional settings
+  .gitignore           # ignores the machine-local files below
+  LATEST               # id of the newest checkpoint
+  checkpoints/<YYYYMMDDTHHMMSS_ffffffZ>/manifest.json + *.md
+  sessions/            # machine-local session records
+  watch.json watch.log # machine-local watcher state
+  .lock .watch.lock    # OS-level locks
 ```
 
-Memory is plain Markdown: inspectable, editable, portable, and easy to version with Git. Never store secrets, credentials, private keys, or sensitive personal data in memory files.
+Memory is plain Markdown: inspectable, editable, portable, and easy to version with Git. Whether to commit `checkpoints/` is your choice; the default `.gitignore` only excludes machine-local runtime files. **Never store secrets in memory.**
 
-## What it protects
+## Guarantees
 
-- **Persistent project memory** — goals, scope, architecture, decisions, verified state, and next steps.
-- **Session recovery** — actionable handoff for a fresh agent instance.
-- **Scope integrity** — out-of-scope ideas are parked, not silently implemented.
-- **Reality verification** — reconcile memory against source code, Git state, and test results.
-- **Checkpoint integrity** — atomic file replacement and SHA-256 verification of stored snapshots.
-- **Multi-agent continuity** — one portable memory format across supported agents.
+- **Atomic checkpoints.** Built in `checkpoints/.staging-*`, published with one directory rename. A crash, kill or full disk mid-checkpoint never produces a visible checkpoint and never replaces an earlier one; leftovers are cleaned by the next checkpoint.
+- **Consistent hashes.** Each file is read once; the stored bytes and the recorded SHA-256 come from the same read and are fsynced before publishing.
+- **Locking.** Mutating commands hold an OS lock (`flock` / `msvcrt.locking`) that the OS releases if the holder dies — no stale locks after crashes.
+- **Never silently overwrite memory.** `init` uses exclusive creates; `park` and `scope approve` only append; `restore` takes a safety checkpoint first; `recover` is read-only.
+- **Verified recovery.** Manifest format, allowed file names (no path traversal), sizes, hashes, unlisted files and project identity are checked; recovery picks the newest checkpoint that passes.
+- **Corruption, conflict and contamination detection.** Missing/empty/non-UTF-8 files, merge-conflict markers, credentials, foreign checkpoints, memory copied from another repository, duplicate identities across projects.
+- **Versioned formats.** Manifest v2; v1 is still read; newer formats are rejected with an upgrade hint rather than misread.
+
+## Configuration
+
+`session-guardian config list` shows every key with its meaning. Highlights:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `retention.keep` | `0` (unlimited) | Keep only the N newest valid checkpoints. Invalid ones are never pruned. |
+| `watch.interval` / `watch.debounce` / `watch.min_checkpoint_interval` | 5 / 10 / 300 s | Poll rate, quiet period before a checkpoint, and rate limit (branch changes bypass the limit). |
+| `watch.ignore` / `watch.max_files` | common build dirs / 20000 | Watcher exclusions and scan bound. |
+| `sessions.stale_after` | 1800 s | A session not seen for this long is reported as interrupted. |
+| `security.block_secrets` | `true` | Refuse checkpoints when high-confidence credentials are detected. |
+| `security.private_permissions` | `false` | `0700`/`0600` permissions on memory and checkpoints (POSIX). |
+
+## Agent support
+
+| Agent | Integration | Lifecycle hooks | Verified |
+|---|---|---|---|
+| Claude Code | `CLAUDE.md` block + `.claude/settings.json` hooks | SessionStart (recovery report injected), UserPromptSubmit (heartbeat), PreToolUse (blocks protected paths), PreCompact (checkpoint), SessionEnd (checkpoint + end) | End-to-end with Claude Code 2.1.328 (SessionStart, PreToolUse, SessionEnd); PreCompact unit-tested only |
+| Codex, OpenCode, generic | `AGENTS.md` block | None — instruction-only | File installation tested; agent compliance depends on the model |
+| Gemini CLI | `GEMINI.md` block | None | File installation tested |
+| Cursor / Windsurf | `.cursor/rules/…mdc` / `.windsurf/rules/…md` | None | File installation tested |
+
+Instruction-only agents get automatic checkpoints from `session-guardian watch`. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for the hook contract and how to integrate another agent.
 
 ## Important limitations
 
-SessionGuardian is not a magical process recorder. It can recover only information that was persisted. A hard power loss or forced process kill can lose unsaved editor buffers and uncheckpointed reasoning. The current core snapshots memory files; it does not capture terminal scrollback, editor buffers, or live agent internals. If an agent is writing a memory file at the exact moment of a checkpoint, the snapshot may contain that partial content (it will still verify, because it is hashed as read); keep agent writes and checkpoints sequential. Directory fsync is not available on Windows, so the publish rename there is atomic but its durability across power loss depends on the filesystem. Lifecycle hooks and automatic checkpointing remain future work and must be validated per agent and version.
+SessionGuardian is not a process recorder. It recovers only what was persisted: memory files written by agents, checkpoints, session records, and Git state. It does not capture conversations, terminal scrollback, editor buffers, or agent internals; a forced kill or power loss loses uncheckpointed reasoning and unsaved buffers. The watcher preserves filesystem and Git state; semantic context comes from agents keeping memory files accurate.
 
-The repository's actual code and Git state outrank stale memory. SessionGuardian never restores or overwrites working files automatically.
+Scope protection is a guardrail, not a security boundary: an agent with shell access can run `scope approve` itself or edit `SCOPE.md`. Approvals are logged in `SCOPE.md` so this is auditable. The repository's actual code and Git state outrank stale memory. SessionGuardian never restores or overwrites working files automatically.
+
+More: [architecture](docs/ARCHITECTURE.md) · [recovery guide](docs/RECOVERY.md) · [watcher](docs/WATCHER.md) · [integrations](docs/INTEGRATIONS.md) · [roadmap](docs/ROADMAP.md) · [changelog](CHANGELOG.md)
 
 ## Development
-
-Run the standard-library test suite:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-CI is configured for Linux, macOS, and Windows across Python 3.9 and 3.12. The suite includes tests that kill a real process while it holds the lock and while it is mid-checkpoint.
-
-## Roadmap
-
-The full plan lives in [docs/ROADMAP.md](docs/ROADMAP.md). Summary:
-
-- [x] Agent-neutral memory protocol and core skill
-- [x] Memory templates and non-destructive initialization
-- [x] Python standard-library core engine
-- [x] Atomic checkpoint snapshots and SHA-256 integrity audit
-- [x] Crash-safe publishing, OS-level locking, verified recovery-point selection, retention, manifest versioning, identity fingerprinting
-- [x] Linux/macOS installer
-- [x] Initial cross-platform CI matrix
-- [ ] Run and fix the CI matrix; validate installer on clean machines
-- [ ] Native agent lifecycle hooks and automatic checkpoints
-- [ ] Windows-native installer and polished agent adapters
-- [ ] Multi-project registry and session discovery
-- [ ] Crash-resilient background checkpoint service
+Standard library only. The suite (128 tests) covers the core, sessions, watcher (real background processes), scope, recovery, registry, integrations, Claude hook payloads, the installer, and the 12 failure scenarios from the roadmap. CI runs Linux, macOS and Windows on Python 3.9 and 3.12, plus installer smoke tests on each OS.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). New adapters must document installation paths, discovery behavior, lifecycle hooks, upgrades, and reproducible validation.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
 
 ## License
 

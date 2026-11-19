@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+.session-guardian/checkpoints/
+.session-guardian/LATEST

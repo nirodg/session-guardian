@@ -12,7 +12,7 @@ Status legend: `[x]` implemented and tested · `[~]` partially implemented (see 
 
 ## 1. Core Engine Hardening
 
-**Priority: CRITICAL** — *in progress*
+**Priority: CRITICAL** — *done except Windows/macOS verification*
 
 The core engine must become the reliable foundation independent of any AI agent.
 
@@ -23,9 +23,9 @@ The core engine must become the reliable foundation independent of any AI agent.
 - [x] Add recovery-point selection and validation. *(newest valid checkpoint; `recover --checkpoint ID`)*
 - [x] Implement crash-safe writes and filesystem locking. *(fsync + atomic rename; `flock` / `msvcrt.locking`)*
 - [x] Detect corrupted, incomplete, or inconsistent memory.
-- [~] Add memory conflict detection and reconciliation. *Detection done (merge-conflict markers, memory changed since checkpoint). Reconciliation not implemented.*
+- [x] Add memory conflict detection and reconciliation. *(merge-conflict markers, drift since checkpoint; `diff`, `restore` with safety checkpoint, `import-checkpoint`. Semantic merging of conflicting content stays manual.)*
 - [x] Implement project fingerprinting and identity verification. *(project_id in manifests; Git root-commit fingerprint)*
-- [x] Add comprehensive unit and integration tests. *(35 tests, including real process kills while locked and mid-checkpoint)*
+- [x] Add comprehensive unit and integration tests. *(see `tests/`; includes real process kills while locked and mid-checkpoint)*
 - [ ] Verify cross-platform behavior on Linux, macOS and Windows. *Verified locally on Linux with Python 3.9, 3.11, 3.12. macOS and Windows not yet run: GitHub Actions jobs are not starting (account billing lock).*
 
 **Acceptance criteria:**
@@ -40,18 +40,18 @@ The core engine must become the reliable foundation independent of any AI agent.
 
 Build an independent background process that monitors project activity and maintains durable session state without relying on an AI agent.
 
-- [ ] Implement lightweight background daemon.
-- [ ] Monitor configured project directories.
-- [ ] Detect relevant file changes.
-- [ ] Detect Git branch and working-tree changes.
-- [ ] Implement configurable checkpoint intervals.
-- [ ] Implement debouncing to avoid excessive writes.
-- [ ] Add automatic checkpoint triggers.
-- [ ] Implement process lifecycle management.
-- [ ] Support graceful shutdown.
-- [ ] Recover from unexpected daemon termination.
-- [ ] Implement resource-efficient monitoring.
-- [ ] Provide configurable exclusions and ignore patterns.
+- [x] Implement lightweight background daemon. *(`watch start` / `watch run`; stdlib polling)*
+- [x] Monitor configured project directories. *(explicit directories or `--all` registered projects)*
+- [x] Detect relevant file changes.
+- [x] Detect Git branch and working-tree changes.
+- [x] Implement configurable checkpoint intervals.
+- [x] Implement debouncing to avoid excessive writes.
+- [x] Add automatic checkpoint triggers. *(activity settles, branch/HEAD change, shutdown, changes while stopped)*
+- [x] Implement process lifecycle management. *(start/stop/status, one watcher per project via OS lock)*
+- [x] Support graceful shutdown. *(stop file + signals; final checkpoint)*
+- [~] Recover from unexpected daemon termination. *Detected and reported; offline changes caught on restart. Automatic restart needs a service manager — examples in docs/WATCHER.md, untested.*
+- [x] Implement resource-efficient monitoring. *(bounded scan, configurable interval; no native FS events yet)*
+- [x] Provide configurable exclusions and ignore patterns.
 
 **Important:** File monitoring does not automatically capture an AI conversation. The watcher must preserve filesystem and project state, while agent integrations provide semantic session context.
 
@@ -68,31 +68,31 @@ Build an independent background process that monitors project activity and maint
 Provide native integrations while maintaining a vendor-independent core.
 
 ### OpenAI Codex
-- [ ] Native skill installation.
-- [ ] Startup recovery instructions.
-- [ ] Session checkpoint integration.
+- [x] Native skill installation. *(installer: `~/.codex/skills`)*
+- [x] Startup recovery instructions. *(`integrate codex` → AGENTS.md block)*
+- [~] Session checkpoint integration. *Instruction-based plus `watch`; no Codex hooks wired.*
 - [ ] Context compaction handling where supported.
-- [ ] Scope enforcement.
+- [~] Scope enforcement. *Advisory (`scope check`); not blocking.*
 
 ### Claude Code
-- [ ] Native skill installation.
-- [ ] Lifecycle hooks where supported.
-- [ ] Session recovery.
-- [ ] Automatic checkpoint triggers.
-- [ ] Scope enforcement.
+- [x] Native skill installation.
+- [x] Lifecycle hooks where supported. *(verified end-to-end with Claude Code 2.1.328: SessionStart, PreToolUse, SessionEnd; PreCompact payload-tested)*
+- [x] Session recovery. *(report injected at SessionStart)*
+- [x] Automatic checkpoint triggers. *(PreCompact, SessionEnd)*
+- [x] Scope enforcement. *(PreToolUse blocks protected paths)*
 
 ### OpenCode
-- [ ] Native skill installation.
-- [ ] Plugin or event integration.
+- [x] Native skill installation.
+- [ ] Plugin or event integration. *Not shipped: needs validation against OpenCode's plugin API.*
 - [ ] Session lifecycle handling.
-- [ ] Recovery and checkpoint support.
+- [~] Recovery and checkpoint support. *Instruction-based (AGENTS.md) plus `watch`.*
 
 ### Other agents
-- [ ] Cursor.
-- [ ] Windsurf.
-- [ ] Gemini CLI.
-- [ ] Generic AGENTS.md-compatible agents.
-- [ ] Documented integration SDK for third-party agents.
+- [x] Cursor. *(rule file; instruction-only)*
+- [x] Windsurf. *(rule file; instruction-only)*
+- [x] Gemini CLI. *(GEMINI.md block; instruction-only)*
+- [x] Generic AGENTS.md-compatible agents.
+- [x] Documented integration SDK for third-party agents. *(docs/INTEGRATIONS.md: CLI contract + generic hook dispatcher)*
 
 **Acceptance criteria:**
 - Different agents can share the same project memory.
@@ -106,15 +106,15 @@ Provide native integrations while maintaining a vendor-independent core.
 
 Build a deterministic recovery workflow.
 
-- [ ] Detect interrupted sessions.
+- [x] Detect interrupted sessions.
 - [x] Identify the last valid checkpoint.
-- [~] Compare checkpoint state against current Git state. *HEAD and branch drift reported; no working-tree diff yet.*
-- [ ] Detect unfinished tasks.
-- [ ] Detect potentially unsaved or untracked work.
-- [ ] Generate a recovery report.
-- [ ] Generate an actionable next-step handoff.
-- [ ] Support recovery from another AI agent.
-- [ ] Support manual recovery without an AI agent.
+- [x] Compare checkpoint state against current Git state. *(branch, HEAD, commits since, rewritten history)*
+- [x] Detect unfinished tasks. *(unchecked items in NEXT_STEPS.md)*
+- [x] Detect potentially unsaved or untracked work. *(uncommitted/untracked files, memory changed since checkpoint; editor buffers are out of reach)*
+- [x] Generate a recovery report. *(`recover --format markdown`)*
+- [x] Generate an actionable next-step handoff.
+- [x] Support recovery from another AI agent. *(scenario test 06)*
+- [x] Support manual recovery without an AI agent. *(docs/RECOVERY.md)*
 
 **Acceptance criteria:**
 
@@ -133,14 +133,14 @@ A fresh agent must be able to reconstruct:
 
 Prevent AI agents from drifting away from the agreed objective.
 
-- [ ] Define explicit project scope.
-- [ ] Define architectural invariants.
-- [ ] Track approved scope changes.
-- [ ] Detect proposed out-of-scope modifications.
-- [ ] Maintain a separate parking lot for unrelated ideas.
-- [ ] Detect contradictions between instructions and project decisions.
-- [ ] Require user approval for consequential scope changes.
-- [ ] Audit implementation against the active objective.
+- [x] Define explicit project scope. *(SCOPE.md sections; `scope show`)*
+- [x] Define architectural invariants.
+- [x] Track approved scope changes. *(`scope approve`, logged in SCOPE.md)*
+- [x] Detect proposed out-of-scope modifications. *(protected path globs: `scope check`, Claude PreToolUse)*
+- [x] Maintain a separate parking lot for unrelated ideas. *(`park`)*
+- [~] Detect contradictions between instructions and project decisions. *Agent protocol only (SKILL.md); no deterministic detection — this needs semantic judgement.*
+- [x] Require user approval for consequential scope changes. *(blocking in Claude Code; advisory elsewhere)*
+- [~] Audit implementation against the active objective. *Path-level (`scope check --git`); semantic review is left to the agent.*
 
 **Acceptance criteria:**
 - Unrelated ideas are recorded but not implemented.
@@ -154,14 +154,14 @@ Prevent AI agents from drifting away from the agreed objective.
 
 Support developers working across numerous projects and terminal sessions.
 
-- [ ] Implement global project registry.
-- [ ] Detect project roots.
-- [ ] Associate sessions with projects.
-- [ ] Support multiple simultaneous sessions per project.
-- [ ] Identify active and interrupted sessions.
-- [~] Prevent cross-project memory contamination. *Checkpoints from another project and memory copied from another Git repository are flagged by `audit`.*
-- [ ] Provide project/session listing commands.
-- [ ] Support configurable project aliases.
+- [x] Implement global project registry.
+- [x] Detect project roots. *(parent-directory search)*
+- [x] Associate sessions with projects.
+- [x] Support multiple simultaneous sessions per project.
+- [x] Identify active and interrupted sessions.
+- [x] Prevent cross-project memory contamination. *(foreign checkpoints, copied memory, duplicate identities flagged; per-project locks)*
+- [x] Provide project/session listing commands.
+- [x] Support configurable project aliases.
 
 **Target workflow:**
 
@@ -188,14 +188,14 @@ session-guardian config
 session-guardian uninstall
 ```
 
-- [ ] Consistent command output.
-- [ ] Human-readable and JSON output.
-- [ ] Useful error messages.
-- [ ] Configuration management.
-- [ ] Logging and diagnostic mode.
-- [ ] Shell completion.
-- [ ] Version and update management.
-- [ ] No unnecessary dependencies.
+- [x] Consistent command output.
+- [x] Human-readable and JSON output. *(`--format text`, recovery Markdown)*
+- [x] Useful error messages.
+- [x] Configuration management. *(`config`)*
+- [x] Logging and diagnostic mode. *(`--verbose`, `SESSION_GUARDIAN_DEBUG`, watcher log)*
+- [x] Shell completion. *(bash, zsh, PowerShell)*
+- [x] Version and update management. *(`--version`; update = re-run installer, optionally pinned)*
+- [x] No unnecessary dependencies. *(standard library only)*
 
 ## 8. Universal Installer
 
@@ -203,16 +203,16 @@ session-guardian uninstall
 
 One-command installation should remain a defining feature.
 
-- [ ] Linux installer.
-- [ ] macOS installer.
-- [ ] Windows PowerShell installer.
-- [ ] Automatic agent detection.
-- [ ] Interactive and non-interactive installation.
-- [ ] Safe upgrades.
-- [ ] Installation validation.
-- [ ] Clean uninstall.
-- [ ] Version pinning.
-- [ ] Installation tests.
+- [x] Linux installer.
+- [~] macOS installer. *Same script; macOS run pending CI.*
+- [~] Windows PowerShell installer. *Written (`install.ps1`), not yet run on Windows; CI job added.*
+- [x] Automatic agent detection.
+- [x] Interactive and non-interactive installation.
+- [x] Safe upgrades.
+- [x] Installation validation.
+- [x] Clean uninstall.
+- [x] Version pinning.
+- [x] Installation tests. *(install.sh; install.ps1 via CI only)*
 
 Target installation:
 
@@ -224,36 +224,38 @@ curl -fsSL https://raw.githubusercontent.com/nirodg/session-guardian/main/instal
 
 **Priority: HIGH**
 
-- [ ] Protect memory files from accidental corruption.
-- [ ] Never persist credentials or secrets.
-- [ ] Add configurable memory permissions.
+- [x] Protect memory files from accidental corruption.
+- [x] Never persist credentials or secrets. *(pattern-based detection; checkpoint refuses high-confidence findings)*
+- [x] Add configurable memory permissions.
 - [x] Prevent unsafe concurrent writes. *(core operations are serialized by the project lock)*
-- [~] Validate imported checkpoints. *Manifests are validated (format, file names, hashes, project id); there is no import command yet.*
-- [ ] Protect against malicious repository instructions.
-- [ ] Add recovery and backup documentation.
+- [x] Validate imported checkpoints. *(`import-checkpoint`)*
+- [~] Protect against malicious repository instructions. *Report frames memory as data and demotes headings; agents must still treat repo content as untrusted.*
+- [x] Add recovery and backup documentation.
 - [x] Test interrupted writes and process termination.
-- [ ] Establish security reporting procedures.
+- [x] Establish security reporting procedures.
 
 ## 10. Documentation and Open Source Adoption
 
 **Priority: MEDIUM**
 
 - [x] Publish the correct project hero image.
-- [ ] Improve README presentation.
-- [ ] Add architecture documentation.
-- [ ] Add installation guides for every supported agent.
-- [ ] Add animated terminal demonstrations.
-- [ ] Add real-world recovery examples.
-- [ ] Add contribution guidelines.
-- [ ] Add GitHub issue and PR templates.
-- [ ] Add release workflow and versioning.
-- [x] Publish a roadmap and changelog. *(roadmap published; changelog pending)*
+- [x] Improve README presentation.
+- [x] Add architecture documentation.
+- [x] Add installation guides for every supported agent. *(README + docs/INTEGRATIONS.md)*
+- [ ] Add animated terminal demonstrations. *Needs recording tooling and review of the result.*
+- [x] Add real-world recovery examples. *(docs/RECOVERY.md)*
+- [x] Add contribution guidelines.
+- [x] Add GitHub issue and PR templates.
+- [~] Add release workflow and versioning. *Workflow added (tag `v*` → tests → release); not yet run.*
+- [x] Publish a roadmap and changelog.
 
 ## 11. Testing Strategy
 
-**Priority: CRITICAL**
+**Priority: CRITICAL** — *done*
 
 Create reproducible scenarios covering:
+
+All 12 are automated in `tests/test_scenarios.py` (`test_01` … `test_12`). Machine restart is simulated by recreating the on-disk state a power loss leaves behind.
 
 1. Normal session shutdown.
 2. Unexpected terminal closure.
@@ -263,8 +265,8 @@ Create reproducible scenarios covering:
 6. Switching between AI agents.
 7. Concurrent sessions.
 8. Multiple projects.
-9. Corrupted checkpoint. *(covered)*
-10. Conflicting project memory. *(covered: merge-conflict markers, foreign project checkpoints)*
+9. Corrupted checkpoint.
+10. Conflicting project memory.
 11. Git branch changes.
 12. Out-of-scope implementation attempts.
 

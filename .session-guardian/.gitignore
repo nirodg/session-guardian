@@ -1,0 +1,11 @@
+# SessionGuardian runtime files (machine-local; not project memory)
+.lock
+.watch.lock
+watch.json
+watch.stop
+watch.log
+watch.log.1
+scope-approvals.json
+sessions/
+checkpoints/.staging-*
+checkpoints/.trash-*
