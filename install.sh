@@ -16,62 +16,25 @@ while (($#)); do
   esac
 done
 
-command -v git >/dev/null || { echo "Git is required for installation." >&2; exit 1; }
+command -v git >/dev/null || { echo "Git is required." >&2; exit 1; }
+command -v python3 >/dev/null || { echo "Python 3.9+ is required." >&2; exit 1; }
+python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)' || { echo "Python 3.9+ is required." >&2; exit 1; }
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 git clone --depth 1 --branch "$REF" "$REPO_URL" "$tmp/repo" >/dev/null 2>&1 || { echo "Could not download SessionGuardian ($REF)." >&2; exit 1; }
 src="$tmp/repo"
-[[ -f "$src/skills/session-guardian/SKILL.md" ]] || { echo "Invalid package: skill missing." >&2; exit 1; }
+[[ -f "$src/skills/session-guardian/SKILL.md" && -f "$src/core/session_guardian.py" ]] || { echo "Invalid package: core or skill missing." >&2; exit 1; }
 
-mkdir -p "$ROOT/skills/session-guardian" "$ROOT/templates" "$BIN"
+mkdir -p "$ROOT/skills/session-guardian" "$ROOT/core" "$ROOT/templates" "$BIN"
 install -m 0644 "$src/skills/session-guardian/SKILL.md" "$ROOT/skills/session-guardian/SKILL.md"
+install -m 0644 "$src/core/session_guardian.py" "$ROOT/core/session_guardian.py"
 cp -R "$src/templates/." "$ROOT/templates/"
-cat > "$ROOT/session-guardian" <<'CLI'
+
+cat > "$ROOT/session-guardian" <<EOF
 #!/usr/bin/env bash
-set -euo pipefail
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-cmd="${1:-help}"; shift || true
-case "$cmd" in
-  init)
-    target="${1:-.}"
-    mkdir -p "$target/.session-guardian/checkpoints"
-    for name in PROJECT SCOPE ARCHITECTURE DECISIONS CURRENT_STATE SESSION_LOG NEXT_STEPS; do
-      file="$target/.session-guardian/$name.md"
-      if [[ ! -e "$file" ]]; then cp "$ROOT/templates/$name.md" "$file"; fi
-    done
-    echo "Initialized .session-guardian (existing files preserved)."
-    ;;
-  status)
-    target="${1:-.}"
-    if [[ -d "$target/.session-guardian" ]]; then find "$target/.session-guardian" -maxdepth 2 -type f -print | sort; else echo "No memory found. Run session-guardian init."; fi
-    git -C "$target" status --short --branch 2>/dev/null || true
-    ;;
-  checkpoint)
-    target="${1:-.}"; dir="$target/.session-guardian"
-    [[ -d "$dir" ]] || { echo "No memory found. Run session-guardian init."; exit 1; }
-    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-    mkdir -p "$dir/checkpoints"
-    {
-      echo "# Checkpoint $stamp"; echo; echo "- Created (UTC): $stamp"
-      echo "- Working directory: $(pwd)"
-      echo "- Git status:"; git -C "$target" status --short --branch 2>/dev/null || true
-      for f in PROJECT SCOPE CURRENT_STATE NEXT_STEPS; do echo; echo "## $f"; cat "$dir/$f.md"; done
-    } > "$dir/checkpoints/$stamp.md"
-    echo "Saved $dir/checkpoints/$stamp.md"
-    ;;
-  recover)
-    echo "Read repository instructions and .session-guardian/*.md."
-    echo "Inspect Git status, recent commits and source. Reconcile stale memory."
-    echo "Report objective, scope, verified state, blockers and exact next action."
-    ;;
-  doctor)
-    echo "Installation: $ROOT"
-    echo "Skill: $ROOT/skills/session-guardian/SKILL.md"
-    ;;
-  help|--help|-h) echo "Usage: session-guardian {init [dir]|status [dir]|checkpoint [dir]|recover|doctor}" ;;
-  *) echo "Unknown command: $cmd" >&2; exit 2 ;;
-esac
-CLI
+exec python3 "$ROOT/core/session_guardian.py" "\$@"
+EOF
 chmod 0755 "$ROOT/session-guardian"
 cat > "$BIN/session-guardian" <<EOF
 #!/usr/bin/env bash
@@ -91,7 +54,6 @@ install_skill() {
 }
 case "$AGENT" in
   auto)
-    # Install only into agent directories that already exist; generic is always available.
     found=0
     for d in "$HOME/.agents/skills" "$HOME/.codex/skills" "$HOME/.claude/skills" "$HOME/.config/opencode/skills"; do
       if [[ -d "$d" ]]; then install_skill "$d/session-guardian"; found=1; fi
@@ -105,4 +67,5 @@ case "$AGENT" in
   *) echo "Unknown agent: $AGENT" >&2; exit 2 ;;
 esac
 if (( INIT )); then "$ROOT/session-guardian" init .; fi
-echo "SessionGuardian installed. Ensure $BIN is on PATH; then run: session-guardian init"
+echo "SessionGuardian installed. Ensure $BIN is on PATH."
+echo "Start with: session-guardian init"
