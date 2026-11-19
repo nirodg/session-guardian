@@ -1,6 +1,10 @@
 # SessionGuardian
 
 <p align="center">
+<img src="assets/cover.png" alt="SessionGuardian — Never lose context. Never lose direction." width="100%">
+</p>
+
+<p align="center">
   <strong>Never lose context. Never lose direction.</strong><br>
   Agent-agnostic project memory, session recovery, and scope protection.
 </p>
