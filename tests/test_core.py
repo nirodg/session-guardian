@@ -1,44 +1,13 @@
-import contextlib
-import importlib.util
-import io
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from unittest import mock
 
-CORE = Path(__file__).resolve().parents[1] / "core" / "session_guardian.py"
-spec = importlib.util.spec_from_file_location("session_guardian", CORE)
-sg = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(sg)
-
-HAS_GIT = shutil.which("git") is not None
-
-
-class Base(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name).resolve()
-        self.md = self.root / ".session-guardian"
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def git(self, *args):
-        subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
-
-    def git_repo(self):
-        self.git("init", "-q")
-        self.git("config", "user.email", "test@example.invalid")
-        self.git("config", "user.name", "Test")
-        (self.root / "README").write_text("x")
-        self.git("add", "README")
-        self.git("commit", "-q", "-m", "root")
+from _support import CORE, HAS_GIT, Base, sg
 
 
 class InitTests(Base):
@@ -361,12 +330,6 @@ class LockTests(Base):
 
 
 class CliTests(Base):
-    def run_cli(self, *args):
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = sg.main(list(args))
-        return code, out.getvalue(), err.getvalue()
-
     def test_cli_round_trip(self):
         d = str(self.root)
         self.assertEqual(self.run_cli("init", d)[0], 0)
