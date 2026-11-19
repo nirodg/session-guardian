@@ -3,7 +3,8 @@
 Prioritize actionable tasks. Include expected result and dependencies where useful.
 
 ## Critical / high priority
-- [ ] Resolve the GitHub Actions billing lock and get the CI matrix green on macOS and Windows (validates msvcrt locking, install.ps1, watcher on Windows).
+- [ ] Enable AppVeyor for the repo and get Windows + macOS green (validates msvcrt locking, install.ps1, watcher on Windows). See docs/CI.md.
+- [ ] Ask GitHub Support to clear the Actions billing lock (public repo: Actions should be free).
 - [ ] Tag v0.3.0 once CI is green (release workflow runs on the tag).
 
 ## Normal priority

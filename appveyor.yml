@@ -1,0 +1,58 @@
+# Free hosted CI for public repositories (AppVeyor open-source plan): Windows and macOS.
+# Linux runs locally via ci/local-ci.sh. Enable at https://ci.appveyor.com (sign in with GitHub,
+# add the session-guardian project). Not yet run: validate on the first build.
+version: "{build}"
+skip_branch_with_pr: true
+build: off
+
+environment:
+  matrix:
+    - job_name: windows-py39
+      appveyor_build_worker_image: Visual Studio 2022
+      PYTHON: C:\Python39-x64
+    - job_name: windows-py312
+      appveyor_build_worker_image: Visual Studio 2022
+      PYTHON: C:\Python312-x64
+    - job_name: macos
+      appveyor_build_worker_image: macos-sonoma
+
+for:
+  - matrix:
+      only:
+        - appveyor_build_worker_image: Visual Studio 2022
+    install:
+      - cmd: set PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
+      - cmd: python --version
+      - cmd: git config --global user.email ci@example.invalid
+      - cmd: git config --global user.name CI
+    test_script:
+      - cmd: python -m unittest discover -s tests -v
+      - ps: .\install.ps1 -Source . -Yes -Agent generic
+      - ps: |
+          $sg = Join-Path $env:LOCALAPPDATA "Programs\session-guardian\bin\session-guardian.cmd"
+          $proj = Join-Path $env:TEMP "sg-proj"; New-Item -ItemType Directory -Force $proj | Out-Null; Set-Location $proj
+          foreach ($cmd in @("doctor", "init", "checkpoint", "audit")) { & $sg $cmd; if ($LASTEXITCODE) { throw "session-guardian $cmd failed" } }
+          & $sg watch start --interval 1; if ($LASTEXITCODE) { throw "watch start failed" }
+          & $sg watch stop; if ($LASTEXITCODE) { throw "watch stop failed" }
+          Set-Location $env:APPVEYOR_BUILD_FOLDER
+          .\install.ps1 -Uninstall
+          if (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\session-guardian\core")) { throw "uninstall left files behind" }
+
+  - matrix:
+      only:
+        - appveyor_build_worker_image: macos-sonoma
+    install:
+      - sh: python3 --version
+      - sh: git config --global user.email ci@example.invalid
+      - sh: git config --global user.name CI
+    test_script:
+      - sh: python3 -m unittest discover -s tests -v
+      - sh: bash install.sh --source . --yes --agent generic
+      - sh: |
+          set -e
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p "$TMPDIR/sg-proj" && cd "$TMPDIR/sg-proj"
+          session-guardian doctor && session-guardian init && session-guardian checkpoint && session-guardian audit
+          session-guardian watch start --interval 1 && session-guardian watch stop
+          cd "$APPVEYOR_BUILD_FOLDER" && bash install.sh --uninstall
+          test ! -e "$HOME/.local/share/session-guardian/core"

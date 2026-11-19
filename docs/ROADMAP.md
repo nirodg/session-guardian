@@ -26,7 +26,7 @@ The core engine must become the reliable foundation independent of any AI agent.
 - [x] Add memory conflict detection and reconciliation. *(merge-conflict markers, drift since checkpoint; `diff`, `restore` with safety checkpoint, `import-checkpoint`. Semantic merging of conflicting content stays manual.)*
 - [x] Implement project fingerprinting and identity verification. *(project_id in manifests; Git root-commit fingerprint)*
 - [x] Add comprehensive unit and integration tests. *(see `tests/`; includes real process kills while locked and mid-checkpoint)*
-- [ ] Verify cross-platform behavior on Linux, macOS and Windows. *Verified locally on Linux with Python 3.9, 3.11, 3.12. macOS and Windows not yet run: GitHub Actions jobs are not starting (account billing lock).*
+- [ ] Verify cross-platform behavior on Linux, macOS and Windows. *Linux verified in clean containers, Python 3.9–3.13 (`ci/local-ci.sh`). macOS and Windows: `appveyor.yml` ready, not yet run (GitHub Actions is billing-locked; see docs/CI.md).*
 
 **Acceptance criteria:**
 - No checkpoint operation can silently corrupt existing memory.

@@ -146,7 +146,7 @@ More: [architecture](docs/ARCHITECTURE.md) · [recovery guide](docs/RECOVERY.md)
 python -m unittest discover -s tests -v
 ```
 
-Standard library only. The suite (128 tests) covers the core, sessions, watcher (real background processes), scope, recovery, registry, integrations, Claude hook payloads, the installer, and the 12 failure scenarios from the roadmap. CI runs Linux, macOS and Windows on Python 3.9 and 3.12, plus installer smoke tests on each OS.
+Standard library only. The suite (128 tests) covers the core, sessions, watcher (real background processes), scope, recovery, registry, integrations, Claude hook payloads, the installer, and the 12 failure scenarios from the roadmap. CI without paid GitHub Actions: `ci/local-ci.sh` runs Linux (Python 3.9–3.13, Docker) on your machine, and AppVeyor's free open-source plan covers Windows and macOS. See [docs/CI.md](docs/CI.md).
 
 ## Contributing
 
