@@ -15,7 +15,7 @@ Resolve conflicts in this order: current explicit user instruction; actual repos
 
 1. Read repository instructions (AGENTS.md, CLAUDE.md, and applicable tool-specific rules).
 2. Read all applicable files in .session-guardian/.
-3. Inspect working directory, Git branch, git status, recent commits, and relevant source.
+3. Inspect working directory, Git branch, Git status, recent commits, and relevant source.
 4. Compare memory claims with reality; identify contradictions and stale entries.
 5. Identify the active objective, constraints, unfinished work, blockers, and smallest next action.
 6. If intent cannot be safely inferred, ask. Never discard or overwrite user changes.
@@ -34,7 +34,7 @@ Treat SCOPE.md as a boundary.
 
 ## Persistent memory
 
-Maintain these repository-local Markdown files:
+Maintain these repository-local files:
 - PROJECT.md: purpose, users, outcomes, current phase.
 - SCOPE.md: objective, included work, exclusions, invariants.
 - ARCHITECTURE.md: verified components, data flows, interfaces, infrastructure.
@@ -44,18 +44,24 @@ Maintain these repository-local Markdown files:
 - NEXT_STEPS.md: prioritized tasks and out-of-scope parking lot.
 - checkpoints/: timestamped handoff snapshots.
 
-If memory is missing, create it from templates. Never overwrite existing user content. Mark unknowns UNKNOWN rather than guessing.
+If memory is missing, run `session-guardian init` or create it from templates. Never overwrite existing user content. Mark unknowns UNKNOWN rather than guessing.
 
 ## Checkpointing
 
+Use the local core engine when available:
+- `session-guardian checkpoint` creates a timestamped, integrity-manifested snapshot of memory and Git metadata.
+- `session-guardian audit` verifies checkpoint hashes and required memory files.
+- `session-guardian recover` identifies the latest checkpoint; it does not automatically roll back or overwrite working files.
+
 Persist meaningful information promptly after milestones, decisions, scope changes, blockers, significant test results, and before handoffs or context compaction. Avoid noisy updates for trivial commands.
 
-A checkpoint records timestamp/timezone when available, active objective, verified status, files changed, decisions, tests and outcomes, blockers, Git branch/status, and the exact next action.
+A semantic checkpoint must record timestamp/timezone, active objective, verified status, files changed, decisions, tests and outcomes, blockers, Git branch/status, and the exact next action. The core engine snapshots files; the agent is responsible for keeping their content accurate.
 
-Before ending:
+## Before ending or handing off
+
 1. Ensure important code changes are saved to disk; do not claim unsaved editor buffers are persisted.
 2. Update CURRENT_STATE.md, NEXT_STEPS.md, and SESSION_LOG.md as appropriate.
-3. Create a checkpoint when requested or when substantial work is mid-flight.
+3. Run `session-guardian checkpoint` when requested or when substantial work is mid-flight.
 4. State what remains unverified. Do not commit unless asked.
 
 ## Safety
@@ -64,7 +70,7 @@ Never put secrets, tokens, passwords, private keys, cookies, or sensitive person
 
 ## Commands
 
-Recognize: "save context", "checkpoint", "recover context", "what are we doing?", "scope check", "update scope", "audit memory", and "handoff". Apply the corresponding persistence, recovery, scope review, audit, or handoff procedure.
+Recognize "save context", "checkpoint", "recover context", "what are we doing?", "scope check", "update scope", "audit memory", and "handoff". Apply the corresponding persistence, recovery, scope review, audit, or handoff procedure.
 
 ## Portability
 
